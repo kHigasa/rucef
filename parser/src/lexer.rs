@@ -5,6 +5,9 @@ pub use super::token::Tok;
 use std::collections::HashMap;
 
 pub struct Lexer<T: Iterator<Item = char>> {
+    chars: T,
+    chr0: Option<char>,
+    chr1: Option<char>,
     location: Location,
 }
 
@@ -68,5 +71,53 @@ pub fn get_keywords() -> HashMap<String, Tok> {
     keywords.insert(String::from("while"), Tok::While);
     keywords.insert(String::from("yield"), Tok::Yield);
     keywords
+}
+
+pub type Spanned<Tok> = Result<(Location, Tok, Location), LexicalError>;
+
+impl<T> Lexer<T>
+where T: Iterator<Item = char>,
+{
+    pub fn new(input: T) -> Self {
+        let mut lxr = Lexer {
+            location: Location::new(0, 0),
+        };
+        lxr.next_char();
+        lxr.next_char();
+        // Start at top row(=1) and left column(=1)
+        lxr.location.row = 1;
+        lxr.location.column = 1;
+        lxr
+    }
+
+    fn next_char(&mut self) -> Option<char> {
+        let c = self.chr0;
+        let nxt = self.chars.next();
+        self.chr0 = self.chr1;
+        self.chr1 = nxt;
+        self.location.column += 1;
+        c
+    }
+
+    fn inner_next(&mut self) -> Option<Spanned<Tok>> {
+        // ToDo:
+    }
+}
+
+impl<T> Iterator for Lexer<T>
+where T: Iterator<Item = char>,
+{
+    type Item = Spanned<Tok>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Create some sort of hash map for single char tokens:
+        // let mut X = HashMap::new();
+        // X.insert('=', Tok::Equal);
+        let token = self.inner_next();
+        trace!(
+            "Lex token {:?}", token
+        );
+        token
+    }
 }
 
