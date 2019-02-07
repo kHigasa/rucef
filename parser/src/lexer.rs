@@ -60,6 +60,7 @@ pub fn get_keywords() -> HashMap<String, Tok> {
     keywords.insert(String::from("if"), Tok::If);
     keywords.insert(String::from("import"), Tok::Import);
     keywords.insert(String::from("in"), Tok::In);
+    keywords.insert(String::from("lambda"), Tok::Lambda);
     keywords.insert(String::from("module"), Tok::Module);
     keywords.insert(String::from("null"), Tok::Null);
     keywords.insert(String::from("not"), Tok::Not);
