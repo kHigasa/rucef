@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 pub struct Lexer<T: Iterator<Item = char>> {
     chars: T,
+    at_begin_of_line: bool,
+    pending: Vec<Spanned<Tok>>,
     chr0: Option<char>,
     chr1: Option<char>,
     location: Location,
@@ -81,6 +83,11 @@ where T: Iterator<Item = char>,
 {
     pub fn new(input: T) -> Self {
         let mut lxr = Lexer {
+            chars: input,
+            at_begin_of_line: true,
+            pending: Vec::new(),
+            chr0: None,
+            chr1: None,
             location: Location::new(0, 0),
         };
         lxr.next_char();
@@ -100,8 +107,70 @@ where T: Iterator<Item = char>,
         c
     }
 
+    fn next_line(&mut self) {
+        self.at_begin_of_line = true;
+        self.row += 1;
+        self.colomn = 1;
+    }
+
+    fn lex_comment(&mut self) {
+        self.next_char();
+        // Skip everything until end of line.
+        loop {
+            match self.chr0 {
+                Some('\n') => {
+                    return;
+                }
+                Some(_) => {}
+                None => return,
+            }
+            self.next_char();
+        }
+    }
+
     fn inner_next(&mut self) -> Option<Spanned<Tok>> {
-        // ToDo:
+        if !self.pending.is_empty() {
+            return Some(self.pending.remove(0));
+        }
+
+        'top_loop: loop {
+            if self.at_begin_of_line {
+                self.at_begin_of_line = false;
+                
+                let mut spaces: usize = 0;
+                let mut tabs: usize = 0;
+                loop {
+                    match self.chr0 {
+                        Some(' ') => {
+                            self.next_char();
+                            spaces += 1;
+                        }
+                        Some('\t') => {
+                            if spaces != 0 {
+                                // Don't allow tabs after spaces as part of indentation.
+                                // Tabs after spaces is even more insane than mixing spaces and tabs.
+                                panic!("Tabs not allowed as part of indentation after spaces");
+                            }
+                            self.next_char();
+                            tabs += 1;
+                        }
+                        Some("//") => {
+                            self.lex_comment();
+                            self.at_begin_of_line = true;
+                            continue 'top_loop;
+                        }
+                        Some('\n') => {
+                            self.next_char();
+                            self.next_line();
+                            continue 'top_loop;
+                        }
+                        _ => {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
