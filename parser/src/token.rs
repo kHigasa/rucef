@@ -30,10 +30,13 @@ pub enum Tok {
     MinusGreater,
     EqualGreater,
     Equal,
+    DoubleStar,
+    DoubleStarEqual,
     PlusEqual,
     MinusEqual,
     StarEqual,
     SlashEqual,
+    PercentEqual,
 
     Lparen,
     Rparen,
