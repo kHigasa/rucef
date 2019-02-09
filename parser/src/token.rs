@@ -46,6 +46,7 @@ pub enum Tok {
     SemiColon,
     Comma,
     Dot,
+    Newline,
 
     // Keywords (alphabetically):
     And,
