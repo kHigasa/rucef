@@ -1,4 +1,323 @@
+#![allow(unknown_lints, clippy)]
+
 use super::ast;
 use super::lexer;
+use num_bigint::BigInt;
 
 grammar;
+
+// By having only a single pub function, we reduce a full parse table which is generated for each public entry point to one.
+pub Top: ast::Top = {
+    StartProgram<p:Program> => ast::Top::Program(p),
+    StartStatement <s:Statement> => ast::Top::Statement(s),
+    StartExpression <e:Expression> => ast::Top::Expression(e),
+};
+
+Program: ast::Program = {
+    <lines:FileLine*> => ast::Program {
+        statements: Vec::from_iter(lines.into_iter().filter_map(|e| e))
+    },
+};
+
+// A file line has either a declaration or an empty newline.
+FileLine: Option<ast::LocatedStatement> = {
+    <s:Statement> => Some(s),
+    "\n" => None,
+};
+
+Suite: Vec<ast::LocatedStatement> = {
+    <s:SimpleStatement> => vec![s],
+    "\n" <s:Statement+> => s,
+};
+
+Statement: ast::LocatedStatement = {
+    SimpleStatement,
+    CompoundStatement,
+};
+
+SimpleStatement: ast::LocatedStatement = {
+    <s:SmallStatement> "\n" => s,
+    <s:SmallStatement> ";" => s,
+};
+
+SmallStatement: ast::LocatedStatement = {
+    ExpressionStatement,
+    FlowStatement,
+    ImportStatement,
+    GlobalStatement,
+    NonlocalStatement,
+};
+
+ExpressionStatement: ast::LocatedStatement = {
+    <loc:@L> <expr:TestOrStarExprList> <suffix:AssignSuffix*> => {
+        // Just an expression, no assignment.
+        if suffix.is_empty() {
+            ast::LocatedStatement {
+                location: loc.clone(),
+                node: ast::Statement::Expression { expression: expr }
+            }
+        } else {
+            let mut targets = vec![expr];
+            let mut values = suffix;
+
+            while values.len() > 1 {
+                targets.push(values.remove(0));
+            }
+
+            let value = values.into_iter().next().unwrap();
+
+            ast::LocatedStatement {
+                location: loc.clone(),
+                node: ast::Statement::Assign { targets, value },
+            }
+        }
+    },
+    <loc:@L> <expr:TestOrStarExprList> <op:AugAssign> <e2:TestList> => {
+        let rhs = e2.into_iter().next().unwrap();
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::AugAssign {
+                target: Box::new(expr),
+                op,
+                value: Box::new(rhs)
+            },
+        }
+    },
+};
+
+AssignSuffix: ast::Expression = {
+    "=" <e:TestList> => {
+        e.into_iter().next.unwrap()
+    },
+    "=" <e:YieldExpr> => e,
+};
+
+TestOrStarExprList: ast::Expression = {
+    <e:TestOrStarExpr> <e2:("," TestOrStarExpr)*> <comma:","?> => {
+        let mut res = vec![e];
+        res.extend(e2.into_iter().map(|x| x.1));
+
+        let expr = res.into_iter().next().unwrap();
+
+        expr
+    }
+};
+
+TestOrStarExpr: ast::Expression = {
+    Test,
+    StarExpr,
+};
+
+AugAssign: ast::Operator = {
+    "+=" => ast::Operator::Add,
+    "-=" => ast::Operator::Sub,
+    "*=" => ast::Operator::Mul,
+    "/=" => ast::Operator::Div,
+    "%=" => ast::Operator::Mod,
+    "**=" => ast::Operator::Pow,
+};
+
+FlowStatement: ast::LocatedStatement = {
+    <loc:@L> "break" => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::Break,
+        }
+    },
+    <loc:@L> "continue" => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::Continue,
+        }
+    },
+    <loc:@L> "return" <t:TestList?> => {
+        ast::LocatedStatement {
+           location: loc,
+            node: ast::Statement::Return { value: t },
+        }
+    },
+    <loc:@L> <y:YieldExpr> => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::Expression { expression: y },
+        }
+    },
+};
+
+YieldExpr: ast::Expression = {
+    "yield" <ex:TestList?> => {
+        ast::Expression::Yield {
+            value: ex.map(|expr| Box::new(expr.into_iter().next().unwrap())
+        }
+    },
+};
+
+// ToDo: Implement import statement.
+
+GlobalStatement: ast::LocatedStatement = {
+    <loc:@L> "global" <names:OneOrMore<Identifier>> => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::Global { names }
+        }
+    },
+};
+
+NonlocalStatement: ast::LocatedStatement = {
+    <loc:@L> "nonlocal" <names:OneOrMore<Identifier>> => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::Nonlocal { names }
+        }
+    },
+};
+
+CompoundStatement: ast::LocatedStatement = {
+    IfStatement,
+    WhileStatement,
+    ForStatement,
+    FuncDef,
+    ClassDef,
+};
+
+IfStatement: ast::LocatedStatement = {
+    <loc:@L> "if" "(" <t:Test> ")" "{" <s1:Suite> "}" <s2:(@L "elif" "(" Test ")" "{" Suite "}")*> <s3:("else" "{" Suite "}")?> => {
+        // Determine last else:
+        let mut last = match s3 {
+            Some(s) => Some(s.3),
+            None => None,
+        }
+
+        // Handle elif:
+        for i in s2.into_iter().rev() {
+            let x = ast::LocatedStatement {
+                location: i.0,
+                node: ast::Statement::If { test: i.3, body: i.6, orelse: last },
+            };
+            last = Some(vec![x]);
+        }
+
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::If { test: t, body: s1, orelse: last },
+        }
+    },
+};
+
+WhileStatement: ast::LocatedStatement = {
+    <loc:@L> "while" "(" <e:Test> ")" "{" <s:Suite> "}" <s2:("else" "{" Suite "}")?> => {
+        let or_else = match s2 {
+            Some(s) => Some(s.2),
+            None => None,
+        };
+       ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::While { test: e, body: s, orelse: or_else },
+        }
+    },
+};
+
+ForStatement: ast::LocatedStatement = {
+    <loc:@L> "for" <e:ExpressionList> "in" "(" <t:TestList> ")" "{" <s:Suite> "}" <s2:("else" "{" Suite "}")?> => {
+        let or_else match s2 {
+            Some(s) => Some(s.2),
+            None => None,
+        };
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::For {
+                target: e,
+                iter: t, body: s, orelse: or_else
+            },
+        }
+    },
+};
+
+Test: ast::Expression = {
+    // ToDo:
+};
+
+FuncDef: ast::LocatedStatement = {
+    <loc:@L> "def" <i:Identifier> <a:Parameters> <s:Suite> "end" => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::FunctionDef {
+                name: i,
+                args: a,
+                body: s,
+            }
+        }
+    },
+};
+
+Parameters: ast::Parameters = {
+    "(" <a: (TypedArgList)?> ")" => {
+        match a {
+            Some(a) => a,
+            None => Default::default(),
+        }
+    },
+};
+
+TypedArgsList: ast::Parameters = {
+    <param:TypedParameters> => {
+        let (names, default_elements) = param;
+
+        ast::Parameters {
+            args: names,
+            defaults: default_elements,
+        }
+    },
+};
+
+// Use inline here to make sure the "," is not creating an ambiguity.
+#[inline]
+TypedParameters: (Vec<String>, Vec<ast::Expression>) = {
+    <param1:TypedParameterDef> <param2:("," TypedParameterDef)*> => {
+        // Combine first parameters:
+        let mut args = vec![param1];
+        args.extend(param2.into_iter().map(|x| x.1));
+
+        let mut names = vec![];
+        let mut default_elements = vec![];
+
+        for (name, default) in args.into_iter() {
+            names.push(name.clone());
+            if let Some(default) = default {
+                default_elements.push(default);
+            } else {
+                if default_elements.len() > 0 {
+                    // Once we have started with defaults, all remaining arguments must have defaults.
+                    panic!(
+                        "non-default argument follows default argument: {}",
+                        name
+                    );
+                }
+            }
+        }
+
+        (names, default_elements)
+    }
+};
+
+TypedParameterDef: (String, Option<ast::Expression>) = {
+    <i:TypedParameter> => (i, None),
+    <i:TypedParameter> "=" <e:Test> => (i, Some(e)),
+};
+
+// TODO: add type annotations here:
+TypedParameter: String = {
+    Identifier,
+};
+ClassDef: ast::LocatedStatement = {
+    <loc:@L> "class" <n:Identifier> <s:Suite> "end" => {
+        ast::LocatedStatement {
+            location: loc,
+            node: ast::Statement::ClassDef {
+                name: n,
+                body: s,
+            },
+        }
+    },
+};
+
