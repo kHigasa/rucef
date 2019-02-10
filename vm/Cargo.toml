@@ -1,0 +1,8 @@
+[package]
+name = "elegua_vm"
+version = "0.1.0"
+authors = ["kHigasa <kojihigasa@gmail.com>"]
+
+[dependencies]
+elegua_parser = {path = "../parser"}
+
