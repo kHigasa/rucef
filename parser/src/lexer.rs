@@ -172,6 +172,9 @@ where T: Iterator<Item = char>,
                     self.lex_comment();
                     continue;
                 }
+                Some('"') => {
+                    return Some(self.lex_string());
+                }
                 Some('=') => {
                     let tok_start = self.get_loc();
                     self.next_char();
@@ -398,8 +401,8 @@ where T: Iterator<Item = char>,
         while self.is_char() {
             ident.push(self.next_char().unwrap());
         }
-        let end_loc = self.get_loc();
 
+        let end_loc = self.get_loc();
         let mut keywords = get_keywords();
 
         if keywords.contains_key(&ident) {
@@ -500,6 +503,28 @@ where T: Iterator<Item = char>,
     }
 
     fn lex_string(&mut self) -> Spanned<Tok> {
+        let mut string_content = String::new();
+        let start_loc = self.get_loc();
+
+        loop {
+            match self.next_char() {
+                Some(c) => {
+                    if c == '\n' {
+                        self.new_line();
+                    }
+                    string_content.push(c);
+                }
+                None => {
+                    return Err(LexicalError::StringError);
+                }
+            }
+        }
+
+        let end_loc = self.get_loc();
+        let tok = Tok::String {
+            value: string_content,
+        };
+        Ok((start_loc, tok, end_loc))
     }
 
     fn lex_comment(&mut self) {
