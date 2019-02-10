@@ -68,7 +68,7 @@ pub enum Tok {
     In,
     Lambda,
     Module,
-    Null,
+    None,
     Not,
     Or,
     Return,

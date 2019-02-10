@@ -58,6 +58,9 @@ pub enum Statement {
     Global {
         names: Vec<String>,
     },
+    NonLocal {
+        names: Vec<String>,
+    },
     If {
         test: Expression,
         body: Vec<LocatedStatement>,
@@ -77,6 +80,8 @@ pub enum Statement {
     ClassDef {
         name: String,
         body: Vec<LocatedStatement>,
+        keywords: Vec<Keyword>,
+        // ToDo:
     },
     FunctionDef {
         name: String,
@@ -87,12 +92,65 @@ pub enum Statement {
 
 #[derive(Debug, PartialEq)]
 pub enum Expression {
-    
+    Boolop {
+        a: Box<Expression>,
+        op: Operator,
+        b: Box<Expression>,
+    },
+    Unop {
+        op: UnaryOperator,
+        a: Box<Expression>,
+    },
+    Yield {
+        value: Option<Box<Expression>>,
+    },
+    Compare {
+        a: Box<Expression>,
+        op: Comparison,
+        b: Box<Expression>,
+    },
+    Call {
+        function: Box<Expression>,
+        args: Vec<Expression>,
+        keywords: Vec<Keyword>,
+    },
+    Number {
+        value: Number,
+    },
+    Array {
+        elements: Vec<Expression>,
+    },
+    HashMap {
+        elements: Vec<(Expression, Expression)>,
+    },
+    Set {
+        elements: Vec<Expression>,
+    },
+    String {
+        elements: Vec<Expression>,
+    },
+    Identifier {
+        name: String,
+    },
+    Lambda {
+        args: Parameters,
+        body: Box<Expression>,
+    },
+    True,
+    False,
+    None,
 }
 
 #[derive(Debug, PartialEq, Default)]
 pub struct Parameters {
     pub args: Vec<String>,
+    pub defaults: Vec<Expression>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Keyword {
+    pub name: Option<String>,
+    pub value: Expression,
 }
 
 #[derive(Debug, PartialEq)]
