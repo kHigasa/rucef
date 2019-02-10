@@ -2,7 +2,10 @@
 //! Elegua source code can be translated into separate tokens.
 
 pub use super::token::Tok;
+use num_bigint::BigInt;
+use num_traits::Num;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 pub struct Lexer<T: Iterator<Item = char>> {
     chars: T,
@@ -100,6 +103,7 @@ where T: Iterator<Item = char>,
         lxr
     }
 
+    // Traverse helper functions:
     fn next_char(&mut self) -> Option<char> {
         let c = self.chr0;
         let nxt = self.chars.next();
@@ -117,21 +121,6 @@ where T: Iterator<Item = char>,
 
     fn get_loc(&self) -> Location {
         self.location.clone()
-    }
-
-    fn lex_comment(&mut self) {
-        self.next_char();
-        // Skip everything until end of line.
-        loop {
-            match self.chr0 {
-                Some('\n') => {
-                    return;
-                }
-                Some(_) => {}
-                None => return,
-            }
-            self.next_char();
-        }
     }
 
     fn inner_next(&mut self) -> Option<Spanned<Tok>> {
@@ -398,6 +387,163 @@ where T: Iterator<Item = char>,
         self.next_char();
         let tok_end = self.get_loc();
         Ok((tok_start, tok, tok_end))
+    }
+
+    // Lexer helper functions:
+    fn lex_identifier(&mut self) -> Spanned<Tok> {
+        let mut ident = String::new();
+        let start_loc = self.get_loc();
+        
+        // Take up char into identifier.
+        while self.is_char() {
+            ident.push(self.next_char().unwrap());
+        }
+        let end_loc = self.get_loc();
+
+        let mut keywords = get_keywords();
+
+        if keywords.contains_key(&ident) {
+            Ok((start_loc, keywords.remove(&ident).unwrap(), end_loc))
+        } else {
+            Ok((start_loc, Tok::Ident { ident }, end_loc))
+        }
+    }
+
+    fn lex_number(&mut self) -> Spanned<Tok> {
+        let start_loc = self.get_loc();
+        if self.chr0 == Some('0') {
+            if self.chr1 == Some('x') || self.chr1 == Some('X') {
+                // Hex:
+                self.next_char();
+                self.next_char();
+                self.lex_number_with_radix(start_loc, 16)
+            } else if self.chr1 == Some('o') || self.chr1 == Some('O') {
+                // Oct:
+                self.next_char();
+                self.next_char();
+                self.lex_number_with_radix(start_loc, 8)
+            } else if self.chr1 == Some('b') || self.chr1 == Some('B') {
+                // Binary:
+                self.next_char();
+                self.next_char();
+                self.lex_number_with_radix(start_loc, 2)
+            } else {
+                self.lex_normal_number()
+            }
+        } else {
+            self.lex_normal_number()
+        }
+    }
+
+    fn lex_normal_number(&mut self) -> Spanned<Tok> {
+        let start_loc = self.get_loc();
+
+        let mut value_str = String::new();
+
+        // Integer:
+        while self.is_number(10) {
+            value_str.push(self.next_char.unwrap());
+        }
+
+        // Float:
+        if self.chr0 == Some('.') || self.chr0 == Some('e') {
+            // Take '.':
+            if self.chr0 == Some('.') {
+                value_str.push(self.next_char().unwrap());
+                while self.is_number(10) {
+                    value_str.push(self.next_char().unwrap());
+                }
+            }
+
+            // Take 'e':
+            if self.chr0 == Some('e') {
+                value_str.push(self.next_char().unwrap());
+                
+                if self.chr0 == Some('+') || self.chr0 == Some('-') {
+                    value_str.push(self.next_char().unwrap());
+                }
+
+                while self.is_number(10) {
+                    value_str.push(self.next_char().unwrap());
+                }
+            }
+
+            let value = f64::from_str(&value_str).unwrap();
+
+            // ToDo: Complex
+
+            let end_loc = self.get_loc();
+            Ok((start_loc, Tok::Float { value }, end_loc))
+        } else {
+            let end_loc = self.get_loc();
+            let value = value_str.parse::<BigInt>().unwrap();
+            Ok((start_loc, Tok::Int { value }, end_loc))
+        }
+    }
+
+    fn lex_number_with_radix(&mut self, start_loc: Location, radix: u32) -> Spanned<Tok> {
+        let mut value_str = String::new();
+
+        loop {
+            if self.is_number(radix) {
+                value_str.push(self.next_char().unwrap());
+            } else if self.chr0 == Some('_') {
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+
+        let end_loc = self.get_pos();
+        let value = BigInt::from_str_radix(&value_str, radix).unwrap();
+        Ok((start_loc, Tok::Int { value }, end_loc))
+    }
+
+    fn lex_string(&mut self) -> Spanned<Tok> {
+    }
+
+    fn lex_comment(&mut self) {
+        self.next_char();
+        // Skip everything until end of line.
+        loop {
+            match self.chr0 {
+                Some('\n') => {
+                    return;
+                }
+                Some(_) => {}
+                None => return,
+            }
+            self.next_char();
+        }
+    }
+
+    fn is_char(&self) -> bool {
+        match self.chr0 {
+            Some('a'...'z') | Some('A'...'Z') | Some('_') | Some('0'...'9') => true,
+            _ => false,
+        }
+    }
+
+    fn is_number(&self, radix: u32) -> bool {
+        match radix {
+            2 => match self.chr0 {
+                Some('0'...'1') => true,
+                _ => false,
+            },
+            8 => match self.chr0 {
+                Some('0'...'7') => true,
+                _ => false,
+            },
+            10 => match self.chr0 {
+                Some('0'...'9') => true,
+                _ => false,
+            },
+            16 => match self.chr0 {
+                Some('0'...'9') | Some('a'...'f') | Some('A'...'F') => true,
+                _ => false,
+            },
+            x => unimplemented!("Radix {} is not implemented.", x),
+        }
     }
 }
 
