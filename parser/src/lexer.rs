@@ -7,6 +7,111 @@ use num_traits::Num;
 use std::collections::HashMap;
 use std::str::FromStr;
 
+pub fn make_tokenizer<'a>(source: &'a str) -> impl Iterator<Item = Spanned<Tok>> + 'a {
+    let nlh = NewlineHandler::new(source.chars());
+    let lch = LineContinuationHandler::new(nlh);
+    Lexer::new(lch);
+}
+
+// The newline handler is an iterator which collapsed different newline types(ex/ '\r'(Carriage Return)) into '\n'(Line Feed) always.
+pub struct NewlineHandler<T: Iterator<Item = char>> {
+    source: T,
+    chr0: Option<char>,
+    chr1: Option<char>,
+}
+
+impl<T> NewlineHandler<T>
+where T: Iterator<Item = char>,
+{
+    pub fn new(source: T) -> Self {
+        let mut nlh = NewlineHandler {
+            source,
+            chr0: None,
+            chr1: None,
+        };
+        nlh.shift();
+        nlh.shift();
+        nlh
+    }
+
+    fn shift(&mut self) -> Option<char> {
+        let result = self.chr0;
+        self.chr0 = self.chr1;
+        self.chr1 = self.source.next();
+        result
+    }
+}
+
+impl<T> Iterator for NewlineHandler<T>
+where T: Iteratot<Item = char>,
+{
+    type Item = char;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Collapse '\r\n' into '\n'.
+        loop {
+            if self.chr0 == Some('\r') {
+                if self.chr1 == Some('\n') {
+                    // Transform Windows EOL into '\n'.
+                    self.shift();
+                } else {
+                    // Transform old Mac EOL into '\n'.
+                    self.chr0 = Some('\n')
+                }
+            } else {
+                break;
+            }
+        }
+
+        self.shift()
+    }
+}
+
+// Glues '\' and '\n' into a single line.
+pub struct LineContinuationHandler<T: Iterator<Item = char>> {
+    source: T,
+    chr0: Option<char>,
+    chr1: Option<char>,
+}
+
+// ToDo: We can modify this method, because this method eventually also handle newline.
+impl<T> LineContinationHandler<T>
+where T: Iterator<Item = char>,
+{
+    pub fn new(source: T) -> Self {
+        let mut nlh = LineContinuationHandler {
+            source,
+            chr0: None,
+            chr1: None,
+        };
+        nlh.shift();
+        nlh.shift();
+        nlh
+    }
+}
+
+impl<T> Iterator for LineContinationHandler<T>
+where T: Iterator<Item = char>,
+{
+    type Item = char;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Collapse '\r\n' into '\n'.
+        loop {
+            if self.chr0 == Some('\\') && self.chr1 == Some('\n') {
+                // Skip '\' and '\n'.
+                self.shift();
+                self.shift();
+            } else {
+                break;
+            }
+        }
+
+        self.shift()
+    }
+}
+}
+
 pub struct Lexer<T: Iterator<Item = char>> {
     chars: T,
     at_begin_of_line: bool,
