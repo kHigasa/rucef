@@ -24,8 +24,8 @@ pub enum LexicalError {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Location {
-    row usize,
-    column usize,
+    row: usize,
+    column: usize,
 }
 
 impl Location {
@@ -355,7 +355,7 @@ where T: Iterator<Item = char>,
                     return Some(self.eat_single_char(Tok::Comma));
                 }
                 Some('.') => {
-                    return Some(self.eat_single_char(Tok::Dot);
+                    return Some(self.eat_single_char(Tok::Dot));
                 }
                 Some('\n') => {
                     let tok_start = self.get_loc();
@@ -396,7 +396,7 @@ where T: Iterator<Item = char>,
     fn lex_identifier(&mut self) -> Spanned<Tok> {
         let mut ident = String::new();
         let start_loc = self.get_loc();
-        
+
         // Take up char into identifier.
         while self.is_char() {
             ident.push(self.next_char().unwrap());
@@ -461,7 +461,7 @@ where T: Iterator<Item = char>,
             // Take 'e':
             if self.chr0 == Some('e') {
                 value_str.push(self.next_char().unwrap());
-                
+
                 if self.chr0 == Some('+') || self.chr0 == Some('-') {
                     value_str.push(self.next_char().unwrap());
                 }
