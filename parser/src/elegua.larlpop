@@ -234,7 +234,56 @@ ForStatement: ast::LocatedStatement = {
 };
 
 Test: ast::Expression = {
-    // ToDo:
+    <e:OrTest> <c: ("if" OrTest "else" Test)?> => {
+        match c {
+            Some(c) => {
+                ast::Expression::IfExpression {
+                    test: Box::new(c.1),
+                    body: Box::new(e),
+                    orelse: Box::new(c.3),
+                }
+            },
+            None => e,
+        }
+    },
+    <e:LambdaDef> => e,
+};
+
+LambdaDef: ast::Expression = {
+    "lambda" "(" <p:TypedArgsList?> ")" "->" "{" <b:Expression> "}" =>
+        ast::Expression::Lambda {
+            args: p.unwrap_or(Default::default()),
+            body: Box::new(b)
+        }
+}
+
+OrTest: ast::Expression = {
+    <e:AndTest> => e,
+    <e1:OrTest> "or" <e2:AndTest> => ast::Expression::BoolOp { a: Box::new(e1), op: ast::BooleanOperator::Or, b: Box::new(e2) },
+};
+
+AndTest: ast::Expression = {
+    <e:NotTest> => e,
+    <e1:AndTest> "and" <e2:NotTest> => ast::Expression::BoolOp { a: Box::new(e1), op: ast::BooleanOperator::And, b: Box::new(e2) },
+};
+
+NotTest: ast::Expression = {
+    "not" <e:NotTest> => ast::Expression::Unop { a: Box::new(e), op: ast::UnaryOperator::Not },
+    <e:Comparison> => e,
+};
+
+Comparison: ast::Expression = {
+    <e1:Comparison> <op:CompOp> <e2:Expression> => ast::Expression::Compare { a: Box::new(e1), op: op, b: Box::new(e2) },
+    <e:Expression> => e,
+};
+
+CompOp: ast::Comparison = {
+    "==" => ast::Comparison::Equal,
+    "!=" => ast::Comparison::NotEqual,
+    "<" => ast::Comparison::Less,
+    "<=" => ast::Comparison::LessOrEqual,
+    ">" => ast::Comparison::Greater,
+    ">=" => ast::Comparison::GreaterOrEqual,
 };
 
 FuncDef: ast::LocatedStatement = {
@@ -309,6 +358,7 @@ TypedParameterDef: (String, Option<ast::Expression>) = {
 TypedParameter: String = {
     Identifier,
 };
+
 ClassDef: ast::LocatedStatement = {
     <loc:@L> "class" <n:Identifier> <s:Suite> "end" => {
         ast::LocatedStatement {
@@ -319,5 +369,32 @@ ClassDef: ast::LocatedStatement = {
             },
         }
     },
+};
+
+// Expression.
+ArithmaticExpression: ast::Expression = {
+    <a:ArithmaticExpression> <op:AddOp> <b:Term> => ast::Expression::Binop { a: Box::new(a), op: op, b: Box::new(b) },
+    Term,
+};
+
+AddOp: ast::Operator = {
+    "+" => ast::Operator::Add,
+    "-" => ast::Operator::Sub,
+};
+
+Term: ast::Expression = {
+    <a:Term> <op:MulOp> <b:Factor> => ast::Expression::Binop { a: Box::new(a), op: op, b: Box::new(b) },
+    Factor,
+};
+
+MulOp: ast::Operator = {
+    "*" => ast::Operator::Mul,
+    "/" => ast::Operator::Div,
+    "%" => ast::Operator::Mod,
+};
+
+Factor: ast::Expression = {
+    "+" <e:Factor> => ast::Expression::Unop { a: Box::new(e), op: ast::UnaryOperator::Pos },
+    "-" <e:Factor> => ast::Expression::Unop { a: Box::new(e), op: ast::UnaryOperator::Neg },
 };
 

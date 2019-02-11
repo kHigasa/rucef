@@ -110,7 +110,6 @@ where T: Iterator<Item = char>,
         self.shift()
     }
 }
-}
 
 pub struct Lexer<T: Iterator<Item = char>> {
     chars: T,
