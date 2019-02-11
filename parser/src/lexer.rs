@@ -131,7 +131,7 @@ where T: Iterator<Item = char>,
         'top_loop: loop {
             if self.at_begin_of_line {
                 self.at_begin_of_line = false;
-                
+
                 let mut spaces: usize = 0;
                 let mut tabs: usize = 0;
                 loop {
