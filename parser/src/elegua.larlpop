@@ -398,3 +398,108 @@ Factor: ast::Expression = {
     "-" <e:Factor> => ast::Expression::Unop { a: Box::new(e), op: ast::UnaryOperator::Neg },
 };
 
+Comma<T>: Vec<T> = {
+    <items: (<T> ",")*> <last: T?> => {
+        let mut items = items;
+        items.extend(last);
+        items
+    }
+};
+
+#[inline]
+OneOrMore<T>: Vec<T> = {
+    <i1: T> <i2:("," T)*> => {
+        let mut items = vec![i1];
+        items.extend(i2.into_iter().map(|e| e.1));
+        items
+    }
+};
+
+Number: ast::Number = {
+    <s:int> => { ast::Number::Integer { value: s } },
+    <s:float> => { ast::Number::Float { value: s } },
+    <s:complex> => { ast::Number::Complex { real: s.0, imag: s.1 } },
+};
+
+StringConstant: ast::Expression = {
+    <s:string+> => {
+        let glued = s.join("");
+        ast::Expression::String { value: glued }
+    },
+    <s:bytes+> => {
+        let glued = s.into_iter().flatten().collect::<Vec<u8>>();
+        ast::Expression::Bytes { value: glued }
+    },
+};
+
+Identifier: String = <s:name> => s;
+
+// Hook external lexer:
+extern {
+    type Location = lexer::Location;
+    type Error = lexer::LexicalError;
+
+    enum lexer::Tok {
+        StartProgram => lexer::Tok::StartProgram,
+        StartStatement => lexer::Tok::StartStatement,
+        StartExpression => lexer::Tok::StartExpression,
+        "+" => lexer::Tok::Plus,
+        "-" => lexer::Tok::Minus,
+        ":" => lexer::Tok::Colon,
+        "." => lexer::Tok::Dot,
+        "," => lexer::Tok::Comma,
+        "*" => lexer::Tok::Star,
+        "**" => lexer::Tok::DoubleStar,
+        "%" => lexer::Tok::Percent,
+        "/" => lexer::Tok::Slash,
+        "(" => lexer::Tok::Lparen,
+        ")" => lexer::Tok::Rparen,
+        "[" => lexer::Tok::Lbracket,
+        "]" => lexer::Tok::Rbracket,
+        "{" => lexer::Tok::Lbrace,
+        "}" => lexer::Tok::Rbrace,
+        "=" => lexer::Tok::Equal,
+        "+=" => lexer::Tok::PlusEqual,
+        "-=" => lexer::Tok::MinusEqual,
+        "*=" => lexer::Tok::StarEqual,
+        "/=" => lexer::Tok::SlashEqual,
+        "%=" => lexer::Tok::PercentEqual,
+        "**=" => lexer::Tok::DoubleStarEqual,
+        "==" => lexer::Tok::EqEqual,
+        "!=" => lexer::Tok::NotEqual,
+        "<" => lexer::Tok::Less,
+        "<=" => lexer::Tok::LessEqual,
+        ">" => lexer::Tok::Greater,
+        ">=" => lexer::Tok::GreaterEqual,
+        "and" => lexer::Tok::And,
+        "break" => lexer::Tok::Break,
+        "class" => lexer::Tok::Class,
+        "continue" => lexer::Tok::Continue,
+        "def" => lexer::Tok::Def,
+        "elif" => lexer::Tok::Elif,
+        "else" => lexer::Tok::Else,
+        "for" => lexer::Tok::For,
+        "from" => lexer::Tok::From,
+        "global" => lexer::Tok::Global,
+        "if" => lexer::Tok::If,
+        "in" => lexer::Tok::In,
+        "import" => lexer::Tok::Import,
+        "lambda" => lexer::Tok::Lambda,
+        "nonlocal" => lexer::Tok::Nonlocal,
+        "not" => lexer::Tok::Not,
+        "or" => lexer::Tok::Or,
+        "return" => lexer::Tok::Return,
+        "while" => lexer::Tok::While,
+        "yield" => lexer::Tok::Yield,
+        "True" => lexer::Tok::True,
+        "False" => lexer::Tok::False,
+        "None" => lexer::Tok::None,
+        int => lexer::Tok::Int { value: <BigInt> },
+        float => lexer::Tok::Float { value: <f64> },
+        string => lexer::Tok::String { value: <String> },
+        ident => lexer::Tok::Ident { ident: <String> },
+        "\n" => lexer::Tok::Newline,
+        ";" => lexer::Tok::Semi,
+    }
+};
+
