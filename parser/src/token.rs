@@ -1,81 +1,17 @@
-//! Token definitions
-//! Elegua source code can be tokenized is a sequence of these tokens.
+//! Rustreeem token definitions.
+//! Rustreeem source code can be tokenized in a sequence of these tokens
+
 use num_bigint::BigInt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Tok {
-    Ident { ident: String },
-    Int { value: BigInt },
-    Float { value: f64 },
-    String { value: String },
+    Ident(String),
+    Int(BigInt),
 
-    // Operator (in order of priority):
-    Lbracket,
-    Rbracket,
-    Not,
-    Star,
-    Slash,
-    Percent,
+    // Operators
     Plus,
     Minus,
-    Greater,
-    Less,
-    GreaterEqual,
-    LessEqual,
-    DoubleEqual,
-    NotEqual,
-    DoubleAmper,
-    DoubleVbar,
-    PipeGreater,
-    MinusGreater,
-    EqualGreater,
-    Equal,
-    DoubleStar,
-    DoubleStarEqual,
-    PlusEqual,
-    MinusEqual,
-    StarEqual,
-    SlashEqual,
-    PercentEqual,
-
-    Lparen,
-    Rparen,
-    Lbrace,
-    Rbrace,
-    Colon,
-    SemiColon,
-    Comma,
-    Dot,
-    Newline,
-
-    // Keywords (alphabetically):
-    And,
-    Break,
-    Case,
-    Class,
-    Continue,
-    Def,
-    Do,
-    Elif,
-    Else,
-    End,
-    False,
-    For,
-    From,
-    Global,
-    If,
-    Import,
-    In,
-    Lambda,
-    Module,
-    None,
-    Not,
-    Or,
-    Return,
-    Self,
-    Super,
-    True,
-    While,
-    Yield,
+    Star,
+    Slash,
 }
 
