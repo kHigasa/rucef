@@ -1,6 +1,6 @@
 # Rucef
 
-Let's build your own EDR.
+Let's build EDR on your own.
 
 Copyright 2019 kHigasa. All Rights Reserved
 
