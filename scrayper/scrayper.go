@@ -1,12 +1,12 @@
 package main
 
 import (
-    "fmt"
     "io"
     "log"
     "net/http"
     "os"
     "strconv"
+    "time"
 
     "github.com/PuerkitoBio/goquery"
 )
@@ -16,10 +16,10 @@ const MALCODE_DIR = "malcode"
 const MALCODE_BASE_URL = "http://malc0de.com/database/"
 
 func getFromMalcode() {
-    fmt.Println("####################################")
-    fmt.Println("Brought to you by malc0de")
-    fmt.Println("####################################")
-    fmt.Println()
+    log.Println("####################################")
+    log.Println("Brought to you by malc0de")
+    log.Println("####################################")
+    log.Println()
     for i := 1; i <= 3; i++ {
         page_query := "?&page=" + strconv.Itoa(i)
         res, err := http.Get(MALCODE_BASE_URL + page_query)
@@ -40,15 +40,15 @@ func getFromMalcode() {
         doc.Find(selector).Each(func(i int, s *goquery.Selection) {
             host := goquery.NewDocumentFromNode(s.Find("td").Get(1)).Text()
             url := "http://" + host
-            fmt.Printf("Download malware from %s\n", url)
+            log.Printf("Download malware from %s\n", url)
 
             res, err := http.Get(url)
             if err != nil {
-                fmt.Printf("[NG] %s\n", err)
+                log.Printf("[NG] %s\n", err)
                 goto Fin
             }
             defer res.Body.Close()
-            fmt.Printf("[%s]\n", res.Status)
+            log.Printf("[%s]\n", res.Status)
 
             if res.StatusCode != 404 {
                 filehash := goquery.NewDocumentFromNode(s.Find("td").Get(6)).Find("a").Text()
@@ -57,22 +57,39 @@ func getFromMalcode() {
                     panic(err)
                 }
                 defer out.Close()
-                fmt.Printf("[OK] Filehash is %s\n", filehash)
+                log.Printf("[OK] Filehash is %s\n", filehash)
 
                 io.Copy(out, res.Body)
                 filepath := "../" + HOME_STORAGE_DIR + "/" + MALCODE_DIR + "/" + filehash
                 if err := os.Rename(filehash, filepath); err != nil {
                     panic(err)
                 }
-                fmt.Printf("[OK] Filepath is %s\n", filepath)
+                log.Printf("[OK] Filepath is %s\n", filepath)
             }
             Fin:
-            fmt.Println()
+            log.Println()
         })
     }
 }
 
 func main() {
+    layout := "2006-01-02_15:04:05"
+    logtime := time.Now().Format(layout)
+    logfileName := logtime + ".log"
+    logfile, err := os.OpenFile(logfileName, os.O_WRONLY|os.O_CREATE, 0666)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer logfile.Close()
+    log.SetOutput(io.MultiWriter(logfile, os.Stdout))
+    log.SetFlags(log.Ldate | log.Ltime)
+
     getFromMalcode()
+
+    logfilePath := "./logs/" + logfileName
+    if err := os.Rename(logfileName, logfilePath); err != nil {
+        panic(err)
+    }
+    log.Printf("[OK] Finish writing logs to %s", logfilePath)
 }
 
