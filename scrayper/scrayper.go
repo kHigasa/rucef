@@ -1,6 +1,7 @@
 package main
 
 import (
+    "database/sql"
     "io"
     "log"
     "net/http"
@@ -9,17 +10,29 @@ import (
     "time"
 
     "github.com/PuerkitoBio/goquery"
+    _ "github.com/lib/pq"
 )
 
 const HOME_STORAGE_DIR = "specimen_storage"
 const MALCODE_DIR = "malcode"
 const MALCODE_BASE_URL = "http://malc0de.com/database/"
 
+type Specimen struct {
+    id int
+    hash string
+    src string
+    ip string
+    url string
+    country string
+    timestamp timestamp
+}
+
 func getFromMalcode() {
     log.Println("####################################")
     log.Println("Brought to you by malc0de")
     log.Println("####################################")
     log.Println()
+
     for i := 1; i <= 3; i++ {
         page_query := "?&page=" + strconv.Itoa(i)
         res, err := http.Get(MALCODE_BASE_URL + page_query)
@@ -42,6 +55,7 @@ func getFromMalcode() {
             url := "http://" + host
             log.Printf("Download malware from %s\n", url)
 
+            // Even if the site has already shutted down, we continue getting malware from other sites.
             res, err := http.Get(url)
             if err != nil {
                 log.Printf("[NG] %s\n", err)
@@ -72,7 +86,11 @@ func getFromMalcode() {
     }
 }
 
+// func getFromMarshare() {}
+// func getFromVxVault() {}
+
 func main() {
+    // set logfile
     layout := "2006-01-02_15:04:05"
     logtime := time.Now().Format(layout)
     logfileName := logtime + ".log"
@@ -84,8 +102,19 @@ func main() {
     log.SetOutput(io.MultiWriter(logfile, os.Stdout))
     log.SetFlags(log.Ldate | log.Ltime)
 
-    getFromMalcode()
+    // connect to db
+    db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=khigasa password=zdcgbjmlp878 dbname=rucef sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
 
+    // get malware
+    getFromMalcode()
+    // getFromMalshare()
+    // getFromVxVault()
+
+    // move logfile
     logfilePath := "./logs/" + logfileName
     if err := os.Rename(logfileName, logfilePath); err != nil {
         panic(err)
