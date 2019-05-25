@@ -24,7 +24,7 @@ type Specimen struct {
     ip string
     url string
     country string
-    timestamp timestamp
+    timestamp time.Time
 }
 
 func getFromMalcode() {
@@ -103,7 +103,7 @@ func main() {
     log.SetFlags(log.Ldate | log.Ltime)
 
     // connect to db
-    db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=khigasa password=zdcgbjmlp878 dbname=rucef sslmode=disable")
+    db, err := sql.Open("postgres", "host=127.0.0.1 port=5432 user=khigasa password=zdcgbjmlp878 dbname=rucef sslmode=disable")
     if err != nil {
         log.Fatal(err)
     }
